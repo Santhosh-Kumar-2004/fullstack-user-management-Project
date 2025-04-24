@@ -20,7 +20,7 @@ load_dotenv()
 # creating the fastapi Router
 router = APIRouter(prefix="/User_Management")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") #the loder algos beocmes outdated couse of deprecated="auto"
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
@@ -93,13 +93,20 @@ async def get_current_user(
             detail="Token payload invalid (missing sub)",
         )
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == email).first() #filters and the fetches the first result that matches the sub(email)
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    
+    if not user.is_logged_in: #it is bool, and it is used to check the user is logged in or not?? if not, then 401
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User is logged out. Please log in again."
+        )
+
 
     return {
         "user_id": str(user.user_id),
@@ -112,10 +119,12 @@ async def get_current_user(
 @router.get("/") #---ADMIN
 async def get_all_users(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user) #That function reads the Authorization header, decodes the token, and returns the logged-in user (as a dict).
 ):
+    
     """
-    This is the endpoints whihc is used to Get All the users from the database.
+    This is the endpoints whihc is used to Get All the users from the database. 
+    And it is only acccess to those who have the ADMIN role.
     """
     
     if current_user["role"] != "admin":
@@ -125,7 +134,7 @@ async def get_all_users(
         )
         
     print("INSIDE GET ALL!!!")
-    users = db.query(User).all()
+    users = db.query(User).all() #This one line retrieves all the users
     print(f"Currently available user are: {users}") 
     
     return users
@@ -135,6 +144,7 @@ async def get_user_by_id(
     user_id: str,
     db: Session = Depends(get_db)
 ):
+    
     """
     This endpoint is used to get a user by their id.
     """
@@ -147,12 +157,13 @@ async def get_user_by_id(
     return user
 
 
-#the endpoint ius uysed to add the NEW user to the database
+#the endpoint ius used to add the NEW user to the database
 @router.post("/register", response_model=dict) #---ADMIN, USER
 async def register_user(
-    user: CreateUser,
+    user: CreateUser, #Request body & fAPIL auto fettches it to py model
     db: Session = Depends(get_db)
 ):
+    
     """
     This endpoint is used to register a new user.
     """
@@ -176,20 +187,20 @@ async def register_user(
 
     if existing_user:
         raise HTTPException(
-            status_code=400,
+            status_code=409,
             detail="User with this email or name already exists"
         )
     
-    # Hash the password before storing it
+    # Hashing the password before storing it
     hashed_password = hash_password(user.password)
-    user.password = hashed_password
+    user_password = hashed_password
     
     try:
         new_user = User(
             user_id=uuid.uuid4(),
             name=user.name, 
             email=user.email, 
-            password=user.password,
+            password=user_password,
             role=user.role,
             # created_at=datetime.now(tz=dt.timezone.utc),
             # updated_at=datetime.now(tz=dt.timezone.utc)
@@ -201,6 +212,8 @@ async def register_user(
         
         print("One User Got Added Successfulyy", new_user)
         
+        
+        
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Error when adding the User: {e}")
@@ -211,34 +224,64 @@ async def register_user(
             detail="Failed to create user."
         )
         
-    return { "item": {
+    # user.is_logged_in = True
+    # db.commit()
+        
+    access_token = create_token(data={
+            "sub": new_user.email,
+            "name": new_user.name,
+            "user_id": str(new_user.user_id),
+            "role": new_user.role.value,
+        })
+    print("🔴 Token created:", decode_token(access_token))
+    
+    return { 
+        "access_token": access_token, 
+        "token_type": "bearer",
+        
+        "user": {
         "user_id": new_user.user_id,
         "name": user.name,
         "email": user.email,
-        "password": user.password,
+        "password": user_password,
     },
-        "message": "User registered successfully"
+        # "message": "User registered successfully",
+        
     }
     
 #This endpoint is used to login an Existing Usrr
-@router.post("/login", response_model=dict) #---ADMIN, USER
+@router.post("/login", response_model=dict)
 async def login_user(
-    login_data: LoginUser,
-    db: Session = Depends(get_db),
+    login_data: LoginUser, 
+    db: Session = Depends(get_db)
 ):
     """
-    This endpoint is used to login an existing user.
+    This endpoint is used to Login a existing user using only email and password.
     """
+    
     user = db.query(User).filter(User.email == login_data.email).first()
 
-    if not user or not verify_password(login_data.password, user.password):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Email or Password",
+        )
+
+    print("User found:", user.email)
+    print("Plain password from login:", login_data.password)
+    print("Hashed password from DB:", user.password)
+
+    if not verify_password(login_data.password, user.password):
+        print("Password verification failed!")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
-        
-    print(f"USER {user.name} is logged in successfully")
+
+    print("🤢 Password verified!")
+    
+    user.is_logged_in = True
+    db.commit()
 
     access_token = create_token(data={
         "sub": user.email,
@@ -246,44 +289,60 @@ async def login_user(
         "user_id": str(user.user_id),
         "role": user.role.value,
     })
-    
-    print(f"THE LOGIN DATA IS{decode_token(access_token)}")
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    print("😶‍🌫️ Token created:", decode_token(access_token))
+
+    return {"access_token": access_token, "token_type": "bearer"} #bearer == holding
+
 
 # this endpoint is used to update one user by he's user_id in the database
-@router.put("/{user_id}") #---ADMIN, USER
-def update_one_item(
-    user: UpdateUser, 
+@router.put("/{user_id}")  # ---ADMIN, USER
+def update_one_user(
+    user: UpdateUser,  # name, emial, pass
     user_id: str, 
     db: Session = Depends(get_db)
 ):
-    print(f"Received request to update user with ID: {user_id}")
-    if not (user.email and user.password):
-        raise HTTPException(status_code=400, detail="Missing required fields22")
     
+    """
+    This endpoint is used to Update an existing users credentials.
+    """
+    
+    print(f"Received request to update user with ID: {user_id}")
+    
+    if not (user.email and user.password):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
     db_user = db.query(User).filter(User.user_id == user_id).first()
     print(f"THE SELECTED USER TO UPDATE IS: {db_user}")
-    
+
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    for key, value in user.model_dump().items(): 
-        setattr(db_user, key, value)
-        
+
+    # Hashing the new password
+    hashed_password = hash_password(user.password)
+
+    db_user.name = user.name
+    db_user.email = user.email
+    db_user.password = hashed_password
+
     db.commit()
     db.refresh(db_user)
-    
+
     return {
-        "detail": "Item Updated Successfulyy."
+        "detail": "User updated successfully"
     }
+
 
 #the endpoint is used to delete an User in the database using the user id.
 @router.delete("/{user_id}") #---ADMIN, USER
-def delete_item(
+def delete_user(
     user_id: str, 
     db: Session = Depends(get_db)
 ):
+    """
+    This endpoint is used to Delete a existing user { Hard Core Delete }.
+    """
+    
     db_user = db.query(User).filter(User.user_id == user_id).first()
     
     if db_user is None:
@@ -295,3 +354,24 @@ def delete_item(
     return {
         "detail": "Item deleted Successfulyy."
     }
+
+#the endpoint is used to logout an User and making the is_logged_in is equal to False.
+@router.post("/logout")
+def logout_user(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    This endpoint is used to Logout a existing user and then can login with the same credentials.
+    """
+    
+    user = db.query(User).filter(User.email == current_user["email"]).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_logged_in = False
+    db.commit()
+
+    return {"message": "Logged out successfully"}
+

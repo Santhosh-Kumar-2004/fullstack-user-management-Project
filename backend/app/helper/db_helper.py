@@ -12,8 +12,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(
     DATABASE_URL,
     echo=True,             # Log SQL queries to the console
-    pool_size=10,          # Max number of connections in the pool
-    max_overflow=5,        # Additional connections allowed beyond the pool size
+    pool_size=30,          # Max number of connections in the pool
+    max_overflow=20,        # Additional connections allowed beyond the pool size
 )
 
 # print(test_string)

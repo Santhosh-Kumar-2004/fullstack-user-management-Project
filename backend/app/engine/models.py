@@ -34,6 +34,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     password = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.user)
+    is_logged_in = Column(Boolean, default=False)
     
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -44,6 +45,7 @@ class CreateUser(BaseModel):
     email: str
     password: str
     role: Optional[UserRole] = UserRole.user
+    # is_logged_in: Optional[is_logged_in]
     
 class LoginUser(BaseModel):
     email: str
@@ -52,5 +54,5 @@ class LoginUser(BaseModel):
 class UpdateUser(BaseModel):    
     name: str 
     email: str 
-    password: str 
+    password: str
     
