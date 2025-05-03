@@ -1,5 +1,4 @@
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 import os 
 from dotenv import load_dotenv

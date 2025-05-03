@@ -2,19 +2,13 @@ import uuid
 from sqlalchemy import (
     Column,
     String,
-    Text,
     Boolean,
-    Numeric,
     Enum,
-    ForeignKey,
-    CheckConstraint,
     TIMESTAMP,
     func
 )
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import declarative_base
 from pydantic import BaseModel
-from typing import List
 import enum
 from sqlalchemy import Enum
 from typing import Optional

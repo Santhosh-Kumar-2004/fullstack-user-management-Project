@@ -1,34 +1,42 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
-from pydantic import BaseModel
-from sqlalchemy import UUID
 from sqlalchemy.orm import Session
 from app.engine.models import User
 from passlib.context import CryptContext
-from jose import JWTError, jwt
+from jose import JWTError, jwt #jose library is used for JSON Web Tokens
 from datetime import datetime, timedelta
 import datetime as dt
-import base64
 from app.helper.db_helper import get_db
 from app.engine.models import User, CreateUser, UpdateUser, LoginUser
 import os 
-from dotenv import load_dotenv
+from dotenv import load_dotenv # = It searches in the current directory
 from sqlalchemy.exc import SQLAlchemyError
 import uuid
 
 load_dotenv()
 
 # creating the fastapi Router
-router = APIRouter(prefix="/User_Management")
+router = APIRouter(prefix="/User_Management") #FastAPI that lets you create separate routers (mini apps).
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") #the loder algos beocmes outdated couse of deprecated="auto"
+#Crypto context is used to encode and decode the password securely
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") #If later you change your hashing algorithm in the future (say from bcrypt to something else),it will automatically detect the older hash formats and still verify them.
+# 1.    Takes password as input
+# 2.    Adds some salt
+# 3.    Runs heavy calculations repeatedly
+# 4.    Gives a final unreadable string
+
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+
+if SECRET_KEY is None:
+    print("The env SECRET KEY is missing!")
+    raise Exception("SECRET_KEY is missing in the environment!")
+
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 
 # Function to hash passwords
-def hash_password(password: str) -> str:
+def hash_password(password: str) -> str: # this function promises to return a str
     return pwd_context.hash(password)
 
 # Function to verify passwords
@@ -36,17 +44,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 # Function to create a JWT token
-def create_token(data: dict, expires_delta: timedelta | None = None):
+def create_token(data: dict, expires_delta: timedelta | None = None): #----Creates and signs a JWT token using user data.
     to_encode = data.copy()
     expire = datetime.now(tz=dt.timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire}) #The exp field is added to the token to mark when it expires
     print("Creating token with payload:", to_encode)
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM) #JWT is a standard for securely transmitting information between parties as a JSON object it is usefull for authentication and authorization
 
 # Function to decode and validate a JWT token
-def decode_token(token: str):
+def decode_token(token: str): #---------------------------------------------Decodes and verifies the JWT token to retrieve the user data.
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"The PAYLOAD from the decode token func is: ", payload)
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -60,12 +69,28 @@ def decode_token(token: str):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+# 1.	JWT is split into Header, Payload, Signature
+# 2.	Header and Payload are decoded from Base64
+# 3.	Signature is verified using SECRET_KEY and ALGORITHM
+# 4.	Expiration is checked
+# 5.	Payload is returned if valid
     
 # getting the User role and Current user details
-async def get_current_user(
-    authorization: str = Header(None),
+async def get_current_user(  # --------------------This function extracts, verifies, and returns the currently logged-in user's info based on their token.
+    authorization: str = Header(None), #It automatically reads & injects the Authorization header from the incoming HTTP request.
     db: Session = Depends(get_db)
-):
+): 
+    
+    """
+    | Reads Authorization header |
+    | Splits and extracts token | 
+    | Decodes token |
+    | Looks up user by email in the db | 
+    | Checks if user is still logged in | 
+    | Returns user info |
+    """
+    
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,9 +141,9 @@ async def get_current_user(
     }
 
 #Endpoint is to Get all The users from the database
-@router.get("/") #---ADMIN
+@router.get("/") #---ADMIN #A decorator is a function that wraps another function below it and to add functionality or modify behavior.
 async def get_all_users(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), #It injects a database session, used to query your database.
     current_user: dict = Depends(get_current_user) #That function reads the Authorization header, decodes the token, and returns the logged-in user (as a dict).
 ):
     
@@ -149,23 +174,40 @@ async def get_user_by_id(
     This endpoint is used to get a user by their id.
     """
     
-    user = db.query(User).filter(User.user_id == user_id).first()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    return user
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    except Exception as e:
+        # Unexpected error - Internal Server Error
+        print(f"Error retrieving user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while retrieving the user. Please try again later."
+        )
 
 
 #the endpoint ius used to add the NEW user to the database
 @router.post("/register", response_model=dict) #---ADMIN, USER
 async def register_user(
-    user: CreateUser, #Request body & fAPIL auto fettches it to py model
+    user: CreateUser, #Request body & f-APIL auto fettches it to py model
     db: Session = Depends(get_db)
 ):
     
     """
-    This endpoint is used to register a new user.
+    Validates the user input.
+    Checks if the user already exists in the database.
+    Hashes the password before storing it.
+    Creates the new user in the database.
+    Generates a JWT token for the newly registered user.
+    Returns the JWT token and the newly created user's details in the response.
     """
     
     if not (user.name and user.email and user.password):
@@ -174,11 +216,6 @@ async def register_user(
             detail="Missing required fields1"
         )
         
-    # existing_user = db.query(User.email)
-    
-    # if existing_user:
-    #     raise HTTPException(status_code=400, detail="Username already registered.")
-        
     print(f"Received requested with data: {user}")\
         
     existing_user = db.query(User).filter(
@@ -186,10 +223,17 @@ async def register_user(
     ).first()
 
     if existing_user:
-        raise HTTPException(
-            status_code=409,
-            detail="User with this email or name already exists"
-        )
+        if existing_user.email == user.email:
+            raise HTTPException(
+                status_code=409,
+                detail="User with this email already exists"
+            )
+        elif existing_user.name == user.name:
+            raise HTTPException(
+                status_code=409,
+                detail="User with this name already exists"
+            )
+
     
     # Hashing the password before storing it
     hashed_password = hash_password(user.password)
@@ -202,13 +246,10 @@ async def register_user(
             email=user.email, 
             password=user_password,
             role=user.role,
-            # created_at=datetime.now(tz=dt.timezone.utc),
-            # updated_at=datetime.now(tz=dt.timezone.utc)
         )
 
         db.add(new_user)
         db.commit()
-        # db.refresh(new_user)
         
         print("One User Got Added Successfulyy", new_user)
         
@@ -224,30 +265,24 @@ async def register_user(
             detail="Failed to create user."
         )
         
-    # user.is_logged_in = True
-    # db.commit()
-        
-    access_token = create_token(data={
-            "sub": new_user.email,
-            "name": new_user.name,
-            "user_id": str(new_user.user_id),
-            "role": new_user.role.value,
-        })
-    print("🔴 Token created:", decode_token(access_token))
+    # access_token = create_token(data={
+    #         "sub": new_user.email,
+    #         "name": new_user.name,
+    #         "user_id": str(new_user.user_id),
+    #         "role": new_user.role.value,
+    #     })
+    # print("🔴 Token created:", decode_token(access_token))
     
     return { 
-        "access_token": access_token, 
-        "token_type": "bearer",
+        # "access_token": access_token, 
+        "token_type": "bearer", #when you're returning "token_type": "bearer", you're saying that the token you're generating is a bearer token, and it will be included in future HTTP requests as part of the Authorization header
         
         "user": {
         "user_id": new_user.user_id,
         "name": user.name,
         "email": user.email,
         "password": user_password,
-    },
-        # "message": "User registered successfully",
-        
-    }
+    }}
     
 #This endpoint is used to login an Existing Usrr
 @router.post("/login", response_model=dict)
@@ -309,32 +344,42 @@ def update_one_user(
     
     print(f"Received request to update user with ID: {user_id}")
     
-    if not (user.email and user.password):
-        raise HTTPException(status_code=400, detail="Missing required fields")
+    if not (user.email or user.password or user.name):
+        raise HTTPException(status_code=400, detail="At least one field must be provided.")
+    
+    try:
 
-    db_user = db.query(User).filter(User.user_id == user_id).first()
-    print(f"THE SELECTED USER TO UPDATE IS: {db_user}")
+        db_user = db.query(User).filter(User.user_id == user_id).first()
+        print(f"THE SELECTED USER TO UPDATE IS: {db_user}")
 
-    if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        if db_user is None:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    # Hashing the new password
-    hashed_password = hash_password(user.password)
+        # Hashing the new password
+        hashed_password = hash_password(user.password)
 
-    db_user.name = user.name
-    db_user.email = user.email
-    db_user.password = hashed_password
+        db_user.name = user.name
+        db_user.email = user.email
+        db_user.password = hashed_password
 
-    db.commit()
-    db.refresh(db_user)
+        db.commit()
+        db.refresh(db_user)
 
-    return {
-        "detail": "User updated successfully"
-    }
+        return {
+            "detail": "User updated successfully"
+        }
+    
+    except Exception as e:
+        # Unexpected error - Internal Server Error
+        print(f"Error when Updating user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while Updating the user. Please try again later."
+        )
 
 
 #the endpoint is used to delete an User in the database using the user id.
-@router.delete("/{user_id}") #---ADMIN, USER
+@router.delete("/{user_id}") #--- USER
 def delete_user(
     user_id: str, 
     db: Session = Depends(get_db)
@@ -343,17 +388,27 @@ def delete_user(
     This endpoint is used to Delete a existing user { Hard Core Delete }.
     """
     
-    db_user = db.query(User).filter(User.user_id == user_id).first()
+    try:
+        db_user = db.query(User).filter(User.user_id == user_id).first()
+
+        if db_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        db.delete(db_user)
+        db.commit()
+
+        return {"detail": "Item deleted successfully."}
     
-    if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    db.delete(db_user)
-    db.commit()
-    
-    return {
-        "detail": "Item deleted Successfulyy."
-    }
+    except Exception as e:
+        # Unexpected error - Internal Server Error
+        print(f"Error deleting user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while deleting the user. Please try again later."
+        )
 
 #the endpoint is used to logout an User and making the is_logged_in is equal to False.
 @router.post("/logout")
@@ -364,6 +419,9 @@ def logout_user(
     """
     This endpoint is used to Logout a existing user and then can login with the same credentials.
     """
+    # That's okay for logout — it's an "action" rather than a "resource update".
+    # ending the session — so POST fits better.
+    # Summary: PUT = resource updates, POST = actions. Logout is an action.
     
     user = db.query(User).filter(User.email == current_user["email"]).first()
 
