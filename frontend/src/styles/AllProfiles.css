@@ -1,0 +1,142 @@
+/* General dark theme */
+.allProfilesPage {
+  padding: 40px;
+  background-color: black;
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 40px;
+  color: #00ffc8;
+}
+
+b {
+  color: yellow;
+}
+
+/* Grid layout for cards */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+  padding: 20px;
+}
+
+/* Card styling */
+.userCard {
+  background: linear-gradient(145deg, #1f1f1f, #292929);
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid #2c2c2c;
+}
+
+.userCard:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 6px 30px rgba(0,0,0,0.5);
+}
+
+.userCard h3 {
+  margin-bottom: 10px;
+  color: #00ffd9;
+}
+
+.userCard p {
+  margin: 6px 0;
+  font-size: 0.95rem;
+}
+
+.LinkbtnBtn {
+  text-decoration: none;
+  color: white;
+  font-weight: bold;
+}
+
+/* .Linkbtn:hover {
+  color: black;
+} */
+
+.deleteButtonBtn {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ddd;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  cursor: pointer;
+  margin-left: 20px;
+}
+
+.deleteButtonBtn:hover {
+  background-color: rgb(255, 0, 0);
+  color: black;
+}
+
+.primaryBtnBtn {
+  padding: 9px;
+  background-color: #246733;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  /* font-weight: 600; */
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+@media (max-width: 420px) {
+  .allProfilesPage {
+    padding: 20px 10px;
+  }
+
+  h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .cardGrid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 10px;
+    margin: 0px 10px;
+  }
+
+  .userCard {
+    padding: 18px;
+    border-radius: 10px;
+
+  }
+
+  .userCard h3 {
+    font-size: 18px;
+  }
+
+  .userCard p {
+    font-size: 14px;
+  }
+
+  .primaryBtnBtn,
+  .deleteButtonBtn {
+    font-size: 13px;
+    padding: 8px 12px;
+    margin-left: 0;
+    margin-top: 10px;
+    display: inline-block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+  }
+
+  .LinkbtnBtn {
+    display: block;
+    text-align: center;
+    margin-top: 10px;
+  }
+}
+

@@ -1,0 +1,88 @@
+.footerContainer {
+  background-color: black;
+  color: #ffffff;
+  padding: 40px 20px 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.footerContent {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 40px;
+  max-width: 1400px;
+  margin: auto;
+  border-bottom: 1px solid #333;
+  padding-bottom: 20px;
+  /* z-index: 3; */
+}
+
+.footerBrand {
+  max-width: 300px;
+}
+
+.footerLogo {
+  font-size: 24px;
+  color: #00ffcc;
+  margin-bottom: 12px;
+}
+
+.footerDescription {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #ccc;
+}
+
+.footerLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.footerLinks a {
+  text-decoration: none;
+  color: #ccc;
+  font-size: 14px;
+  transition: color 0.3s ease;
+}
+
+.footerLinks a:hover {
+  color: #00ffcc;
+}
+
+.footerSocials {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.footerSocials a {
+  font-size: 18px;
+  color: #ffffff;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.footerSocials a:hover {
+  color: #00ffcc;
+  transform: scale(1.1);
+}
+
+.footerBottom {
+  text-align: center;
+  padding-top: 16px;
+  font-size: 13px;
+  color: #888;
+}
+
+/* Responsive for the Footer*/
+@media (max-width: 768px) {
+  .footerContent {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .footerSocials {
+    justify-content: center;
+  }
+}
